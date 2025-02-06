@@ -1,23 +1,31 @@
-# Use Python as the base image
-FROM python:3.10
-
-# Set the working directory
-WORKDIR /app
+# Use Ubuntu as the base image
+FROM ubuntu:22.04
 
 # Install dependencies
-RUN pip install --no-cache-dir streamlit langchain_ollama requests
+RUN apt-get update && apt-get install -y \
+    curl \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install DeepSeek manually (instead of using Docker)
-RUN apt update && apt install -y wget tar
-RUN wget https://huggingface.co/deepseek-ai/deepseek-coder/resolve/main/deepseek-coder.tar.gz -O deepseek-coder.tar.gz
-RUN tar -xvf deepseek-coder.tar.gz
-RUN mv deepseek-coder /usr/local/bin/deepseek
+# Install Ollama
+RUN curl -fsSL https://ollama.ai/install.sh | sh
 
-# Expose ports for both DeepSeek and Streamlit
-EXPOSE 11434 10000
+# Set Ollama path
+ENV PATH="/root/.ollama/bin:$PATH"
 
-# Copy all files into the container
-COPY . /app
+# Install Python dependencies
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Run both DeepSeek and Streamlit
-CMD ["bash", "start.sh"]
+# Download and prepare DeepSeek model
+RUN ollama pull deepseek-coder:1.5b
+
+# Copy app files
+COPY . .
+
+# Expose Streamlit and Ollama ports
+EXPOSE 8501 11434
+
+# Start Ollama in the background and launch Streamlit
+CMD ollama serve & streamlit run app.py --server.port 8501 --server.enableCORS false
